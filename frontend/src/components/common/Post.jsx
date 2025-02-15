@@ -7,46 +7,63 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "react-hot-toast";
+
 import LoadingSpinner from "./LoadingSpinner";
+import { formatPostDate } from "../../utils/db/date";
 
 const Post = ({ post }) => {
   const [comment, setComment] = useState("");
-
   const { data: authUser } = useQuery({ queryKey: ["authUser"] });
+  console.log("authUser:", authUser);
+
   const queryClient = useQueryClient();
 
-  const { isPending: isDeleting, mutate: deletePost } = useMutation({
+  // If authUser or post is not yet available, show a loading spinner
+  if (!authUser || !post) {
+    return <LoadingSpinner />;
+  }
+
+  const postOwner = post?.user || {}; // Fallback to an empty object if `post.user` is null
+  const isLiked = authUser ? post.likes.includes(authUser._id) : false;
+  const isMyPost = authUser ? authUser._id === postOwner._id : false;
+
+  const formattedDate = formatPostDate(post.createdAt);
+
+  const { mutate: deletePost, isPending: isDeleting } = useMutation({
     mutationFn: async () => {
       try {
         const res = await fetch(`/api/posts/${post._id}`, {
           method: "DELETE",
         });
         const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Something went wrong");
+
+        if (!res.ok) {
+          throw new Error(data.error || "Something went wrong");
+        }
         return data;
       } catch (error) {
         throw new Error(error);
       }
     },
     onSuccess: () => {
-      toast.success("Posts Deleted Successfully");
+      toast.success("Post deleted successfully");
       queryClient.invalidateQueries({ queryKey: ["posts"] });
     },
   });
 
-  const { isPending: isLiking, mutate: LikedPost } = useMutation({
+  const { mutate: likePost, isPending: isLiking } = useMutation({
     mutationFn: async () => {
       try {
         const res = await fetch(`/api/posts/like/${post._id}`, {
           method: "POST",
         });
         const data = await res.json();
-
-        if (!res.ok) throw new Error(data.error || "Something went wrong");
-
+        if (!res.ok) {
+          throw new Error(data.error || "Something went wrong");
+        }
         return data;
       } catch (error) {
-        throw new Error(error.message);
+        throw new Error(error);
       }
     },
     onSuccess: (updatedLikes) => {
@@ -64,7 +81,7 @@ const Post = ({ post }) => {
     },
   });
 
-  const { isPending: isCommenting, mutate: CommentPost } = useMutation({
+  const { mutate: commentPost, isPending: isCommenting } = useMutation({
     mutationFn: async () => {
       try {
         const res = await fetch(`/api/posts/comment/${post._id}`, {
@@ -76,11 +93,12 @@ const Post = ({ post }) => {
         });
         const data = await res.json();
 
-        if (!res.ok) throw new Error(data.error || "Something went wrong");
-
+        if (!res.ok) {
+          throw new Error(data.error || "Something went wrong");
+        }
         return data;
       } catch (error) {
-        throw new Error(error.message);
+        throw new Error(error);
       }
     },
     onSuccess: () => {
@@ -93,15 +111,6 @@ const Post = ({ post }) => {
     },
   });
 
-  const postOwner = post.user;
-  const isLiked = post.likes.includes(authUser._id);
-
-  const isMyPost = authUser._id === post.user._id;
-
-  const formattedDate = "1h";
-
-  // const isCommenting = true;
-
   const handleDeletePost = () => {
     deletePost();
   };
@@ -109,12 +118,12 @@ const Post = ({ post }) => {
   const handlePostComment = (e) => {
     e.preventDefault();
     if (isCommenting) return;
-    CommentPost();
+    commentPost();
   };
 
   const handleLikePost = () => {
     if (isLiking) return;
-    LikedPost();
+    likePost();
   };
 
   return (
@@ -125,7 +134,10 @@ const Post = ({ post }) => {
             to={`/profile/${postOwner.username}`}
             className="w-8 rounded-full overflow-hidden"
           >
-            <img src={postOwner.profileImg || "/avatar-placeholder.png"} />
+            <img
+              src={postOwner.profileImg || "/avatar-placeholder.png"}
+              alt="Profile"
+            />
           </Link>
         </div>
         <div className="flex flex-col flex-1">
@@ -148,7 +160,8 @@ const Post = ({ post }) => {
                     onClick={handleDeletePost}
                   />
                 )}
-                {isDeleting && <LoadingSpinner size="" />}
+
+                {isDeleting && <LoadingSpinner size="sm" />}
               </span>
             )}
           </div>
@@ -158,7 +171,7 @@ const Post = ({ post }) => {
               <img
                 src={post.img}
                 className="h-80 object-contain rounded-lg border border-gray-700"
-                alt=""
+                alt="Post"
               />
             )}
           </div>
@@ -177,7 +190,6 @@ const Post = ({ post }) => {
                   {post.comments.length}
                 </span>
               </div>
-              {/* We're using Modal Component from DaisyUI */}
               <dialog
                 id={`comments_modal${post._id}`}
                 className="modal border-none outline-none"
@@ -191,8 +203,7 @@ const Post = ({ post }) => {
                       </p>
                     )}
                     {post.comments.map((comment) => {
-                      if (!comment.user) return null; // Skip rendering if user is null
-
+                      if (!comment.user) return null; // Skip rendering if `comment.user` is null
                       return (
                         <div
                           key={comment._id}
@@ -205,7 +216,7 @@ const Post = ({ post }) => {
                                   comment.user.profileImg ||
                                   "/avatar-placeholder.png"
                                 }
-                                alt="User Avatar"
+                                alt="Profile"
                               />
                             </div>
                           </div>
@@ -262,7 +273,7 @@ const Post = ({ post }) => {
                 )}
 
                 <span
-                  className={`text-sm group-hover:text-pink-500 ${
+                  className={`text-sm  group-hover:text-pink-500 ${
                     isLiked ? "text-pink-500" : "text-slate-500"
                   }`}
                 >
