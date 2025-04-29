@@ -111,7 +111,7 @@ export const LogIn = () => {
           <p className="text-center text-gray-600">
             Don't have an account?{" "}
             <Link to="/signup" className="text-blue-500 hover:underline">
-              {isPending ? "Loasing..." : "SignUp"}
+              {isPending ? "Loading..." : "SignUp"}
             </Link>
           </p>
         </div>
